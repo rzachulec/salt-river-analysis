@@ -1,0 +1,28 @@
+dane 1:
+1. temperatura holu
+2. podlicznik klimatyzacji
+3. całościowe zużycie energii
+
+dane 2:
+temp, wilgotność zewnętrzna
+
+cztery miesiące czerwiec lipiec sierpien wrzesien 21 22 23
+
+136 gospodarstw, 22 z kompletem danych
+
+poi: klimatyzacja nie działa:
+- conajmniej przez godzine ciągiem
+- jak szybko przyrasta temp. wewnątrz za dnia?
+- focus on unhealthy temps?
+- rodzaj taryfy?
+
+słońce, temp env, kontrukcja domu
+
+30 stopni granica healthy
+
+jak dużo czasu na interwencję w przypadku awarii klimy?
+
+
+ile z 5700 streaków należą to której taryfy 
+
+ile taryf time of use wyłącza AC w godzinach prądu i jak często
