@@ -2,9 +2,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr, spearmanr
-from scipy.interpolate import griddata
-from scipy.ndimage import gaussian_filter
-from mpl_toolkits.mplot3d import Axes3D
 
 # load main data
 results_df = pd.read_csv('temperature_increase_analysis_day.csv')
@@ -13,8 +10,9 @@ results_df = pd.read_csv('temperature_increase_analysis_day.csv')
 results_df['start_time'] = pd.to_datetime(results_df['start_time'])
 results_df['end_time'] = pd.to_datetime(results_df['end_time'])
 
-results_df = results_df[(results_df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-07')
-                         # | results_df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-08')
+results_df = results_df[(
+                         results_df['start_time'].dt.to_period('M').astype(str).str.startswith('2023')
+                         # | results_df['start_time'].dt.to_period('M').astype(str).str.startswith('2022-08')
                          # | results_df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-09')
                          )]
 
@@ -34,7 +32,7 @@ rate_counts = results_df_noduplicateid['RATE'].value_counts()
 print(rate_counts)
 
 
-def plot_neg_rate_vs_time(df):
+def plot_rate_vs_time(df):
     df1 = df[(df['temp_increase_rate'] >= -5) & (df['temp_increase_rate'] <= 10)]
     df['start_time'] = pd.to_datetime(df['start_time'])
     df['hour'] = df['start_time'].dt.hour
@@ -281,12 +279,26 @@ def plot_area_hours(df, rate_counts):
     plt.show()
 
 
+def farenheit_to_celsius(x):
+    return (x- 32) * 5/9
+
+
+def celsius_to_fahrenheit(x):
+    return x * 9/5 + 32
+
+
 def plot_max_temp_vs_streak_time(df):
+
+    temperature_df = pd.read_csv('../CSV_Load_files/2023_SRP_R.csv')
+
+    temperature_df['date_time'] = pd.to_datetime(temperature_df['date_time'], errors='coerce')
+
     # Step 1: Sort by 'RATE' and 'start_time'
     df = df.sort_values(by=['customer_id', 'start_time']).reset_index(drop=True)
 
-    # df = df[(df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-07') |
-    #          df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-08'))]
+    df = df[(df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-06')
+             | df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-07')
+             )]
 
     df['is_new_streak'] = (
             df['start_time'] != df.groupby('customer_id')['end_time'].shift() + pd.Timedelta(minutes=15)).astype(
@@ -294,7 +306,6 @@ def plot_max_temp_vs_streak_time(df):
 
     df['streak_id'] = df.groupby('customer_id')['is_new_streak'].cumsum()
 
-    # Step 4: Group by 'customer_id' and 'streak_id' to find streak length and max temperature
     streaks = df.groupby(['customer_id', 'streak_id']).agg(
         streak_length=('start_time', lambda x: (df.loc[x.index, 'end_time'].max() - df.loc[
             x.index, 'end_time'].min()).total_seconds() / 3600 + 1),  # Length in minutes
@@ -308,12 +319,41 @@ def plot_max_temp_vs_streak_time(df):
 
     streaks['temp_delta'] = streaks['max_temperature'] - streaks['start_internal_temp']
 
+    # Step 3: Calculate average temperature for each streak
+    avg_temperatures = []
+
+    for _, row in streaks.iterrows():
+        # Extract customer_id and year from streak
+        customer_id = row['customer_id']
+        streak_year = row['streak_start_time'].year
+
+        # Determine the relevant temperature column
+        temp_column_name = f"TEMP_{streak_year}_{customer_id}"
+
+        # Check if the column exists in temperature_df
+        if temp_column_name not in temperature_df.columns:
+            avg_temperatures.append(None)  # If no relevant data, append None
+            continue
+
+        # Filter temperature data for the specific streak duration
+        mask = (temperature_df['date_time'] >= row['streak_start_time']) & (
+                    temperature_df['date_time'] <= row['streak_end_time'])
+
+        # Calculate average temperature using the relevant column
+        avg_temp = temperature_df.loc[mask, temp_column_name].mean()
+        avg_temp = farenheit_to_celsius(avg_temp)
+        avg_temperatures.append(avg_temp)
+
+    # Add the calculated average temperatures to the streaks DataFrame
+    streaks['avg_temperature'] = avg_temperatures  # Add to streaks DataFrame
+
     # streaks = streaks.loc[streaks['streak_length'] >= 1].reset_index(drop=True)
     # streaks.replace("nan", np.nan, inplace=True)
     streaks.dropna(inplace=True)
 
-    hot_id = streaks[streaks['temp_delta'] > 3].reset_index(drop=True)
+    hot_id = streaks[(streaks['temp_delta'] > 4) & (streaks['max_temperature'] > 31)].reset_index(drop=True)
     print('hot IDs:', hot_id)
+    hot_id.to_csv('hot_ids.csv', index=False)
 
     hourly_avg = streaks.groupby(streaks['streak_length'])['max_temperature'].mean().reset_index()
     number_of_streaks = streaks.groupby(streaks['streak_length'])['streak_length'].value_counts().reset_index()
@@ -323,6 +363,19 @@ def plot_max_temp_vs_streak_time(df):
     hourly_avg_delta = streaks.groupby(streaks['streak_length'])['temp_delta'].mean().reset_index()
     hourly_avg_delta.columns = ['hour', 'avg_delta']
 
+    # Calculate averages for plotting
+    hourly_avg = streaks.groupby(streaks['streak_length'])['max_temperature'].mean().reset_index()
+    hourly_avg.columns = ['hour', 'avg_max_temperature']
+
+    number_of_streaks = streaks.groupby(streaks['streak_length'])['streak_length'].value_counts().reset_index()
+    print(number_of_streaks)
+
+    hourly_avg_delta = streaks.groupby(streaks['streak_length'])['temp_delta'].mean().reset_index()
+    hourly_avg_delta.columns = ['hour', 'avg_delta']
+
+    hourly_avg_temp = streaks.groupby(streaks['streak_length'])['avg_temperature'].mean().reset_index()
+    hourly_avg_temp.columns = ['hour', 'avg_temperature']
+
     streaks.to_csv('Streak-maxtemp.csv')
 
     def celsius_to_fahrenheit(x):
@@ -331,24 +384,24 @@ def plot_max_temp_vs_streak_time(df):
     def celsius_to_fahrenheit_delta(x):
         return x * 9/5
 
-    # fig=plt.figure(figsize=(8, 10))
-    # fig.suptitle('July 2023, 8:00-21:00', size=13)
-    # ax1 = fig.add_subplot(2,1,1)
-    # ax1.scatter(streaks['streak_length'], streaks['temp_delta'], alpha=0.4, c='blue')
-    # ax1.plot(hourly_avg_delta['hour'], hourly_avg_delta['avg_delta'], 'r--', label='Average maximum temperature delta')
-    # ax1.set_xlabel('Continuous AC off time [hours]')
-    # ax1.grid(axis="y")
-    # ax1.set_ylabel('Maximum temperature delta [°C]')
-    # ax1.set_title('Maximum temperature delta vs length of AC off time')
-    # ax1.legend()
-    #
-    # ax11 = ax1.twinx()
-    # ax11.set_ylabel('Maximum temperature delta [°F]', color='black')
-    # ax11.set_ylim(celsius_to_fahrenheit_delta(ax1.get_ylim()[0]), celsius_to_fahrenheit_delta(ax1.get_ylim()[1]))
-    # # Ensure the tick marks correspond correctly between the two scales
-    # ax11.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}"))
-    #
-    # ax2 = fig.add_subplot(2,1,2)
+    fig=plt.figure(figsize=(5, 10))
+    fig.suptitle('July 2023, 8:00-21:00', size=13)
+    ax1 = fig.add_subplot(2, 1, 1)
+    ax1.scatter(streaks['streak_length'], streaks['temp_delta'], alpha=0.4, c='blue')
+    ax1.plot(hourly_avg_delta['hour'], hourly_avg_delta['avg_delta'], 'r--', label='Average maximum temperature delta')
+    ax1.set_xlabel('Continuous AC off time [hours]')
+    ax1.grid(axis="y")
+    ax1.set_ylabel('Maximum temperature delta [°C]')
+    ax1.set_title('Maximum temperature delta vs length of AC off time')
+    ax1.legend()
+
+    ax11 = ax1.twinx()
+    ax11.set_ylabel('Maximum temperature delta [°F]', color='black')
+    ax11.set_ylim(celsius_to_fahrenheit_delta(ax1.get_ylim()[0]), celsius_to_fahrenheit_delta(ax1.get_ylim()[1]))
+    # Ensure the tick marks correspond correctly between the two scales
+    ax11.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}"))
+
+    # ax2 = fig.add_subplot(3,1,2)
     # ax2.scatter(streaks['streak_length'], streaks['max_temperature'], alpha=0.4, c='blue')
     # ax2.plot(hourly_avg['hour'], hourly_avg['avg_max_temperature'], 'r--', label='Average maximum temperature')
     # ax2.set_xlabel('Continuous AC off time [hours]')
@@ -360,27 +413,116 @@ def plot_max_temp_vs_streak_time(df):
     # ax22 = ax2.twinx()
     # ax22.set_ylabel('Maximum temperature [°F]', color='black')
     # ax22.set_ylim(celsius_to_fahrenheit(ax2.get_ylim()[0]), celsius_to_fahrenheit(ax2.get_ylim()[1]))
-    # # Ensure the tick marks correspond correctly between the two scales
     # ax22.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}"))
-    # fig.tight_layout()
-    # plt.show()
 
-    plt.bar(number_of_streaks['streak_length'], number_of_streaks['count'], 0.2, color='blue')
-    plt.title('Number of occurrences of time periods of AC being off between 2 PM and 6 PM')
-    plt.xlabel('Hours of AC being off')
-    plt.ylabel('Number of occurrences')
-    plt.grid(axis='y')
+    ax3 = fig.add_subplot(2, 1, 2)
+    ax3.scatter(streaks['streak_length'], streaks['avg_temperature'], alpha=0.4, c='blue')
+    ax3.plot(hourly_avg_temp['hour'], hourly_avg_temp['avg_temperature'], 'r--', label='Average temperature')
+    ax3.set_xlabel('Continuous AC off time [hours]')
+    ax3.grid(axis="y")
+    ax3.set_ylabel('Average temperature [°C]')
+    ax3.set_title('Average temperature vs length of AC off time')
+    ax3.legend()
+
+    ax33 = ax3.twinx()
+    ax33.set_ylabel('Average temperature [°F]', color='black')
+    ax33.set_ylim(celsius_to_fahrenheit(ax3.get_ylim()[0]), celsius_to_fahrenheit(ax3.get_ylim()[1]))
+    ax33.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}"))
+
+    ax1.text(0, 1.1, 'c)', transform=ax1.transAxes, fontsize=12, verticalalignment='top', weight='bold')
+    # ax2.text(0, 1.1, 'b)', transform=ax2.transAxes, fontsize=12, verticalalignment='top', weight='bold')
+    ax3.text(0, 1.1, 'd)', transform=ax3.transAxes, fontsize=12, verticalalignment='top', weight='bold')
+
+    fig.tight_layout()
     plt.show()
 
+    # plt.bar(number_of_streaks['streak_length'], number_of_streaks['count'], 0.2, color='blue')
+    # plt.title('Number of occurrences of time periods of AC being off between 2 PM and 6 PM')
+    # plt.xlabel('Hours of AC being off')
+    # plt.ylabel('Number of occurrences')
+    # plt.grid(axis='y')
+    # plt.show()
 
-# def high_temps(df):
+
+def plot_temp_reach_histogram():
+    """
+    Creates a histogram of the percentage of streaks that reached a temperature of 30 degrees or more per streak duration.
+
+    Parameters:
+    - streaks (pd.DataFrame): DataFrame containing columns 'streak_length' and 'max_temperature'.
+    """
+    # Step 1: Filter streaks where max_temperature >= 30 degrees
+    streaks = pd.read_csv('Streak-maxtemp.csv')
+    print('Sample size: ', streaks['customer_id'].value_counts())
+
+    streaks['streak_start_time'] = pd.to_datetime(streaks['streak_start_time'])
+
+    # streaks = streaks[(streaks['streak_start_time'].dt.to_period('M').astype(str).str.startswith('2023-06')
+             # | df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-08')
+             # )]
+    streaks_june = streaks[streaks['streak_start_time'].dt.to_period('M').astype(str).str.startswith('2023-06')]
+    streaks_july = streaks[streaks['streak_start_time'].dt.to_period('M').astype(str).str.startswith('2023-07')]
+
+    streaks_june['streak_length_hour'] = streaks['streak_length'].round()
+    streaks_july['streak_length_hour'] = streaks['streak_length'].round()
+
+    # JUNE
+    streaks_over_30_june = streaks_june[streaks_june['avg_temperature'] >= 30]
+
+    streaks_over_30_june['streak_length_hour'] = streaks_over_30_june['streak_length'].round()
+
+    total_streaks_per_hour_june = streaks_june['streak_length_hour'].value_counts().sort_index()
+    streaks_over_30_per_hour_june = streaks_over_30_june['streak_length_hour'].value_counts().sort_index()
+
+    percentage_over_30 = (streaks_over_30_per_hour_june / total_streaks_per_hour_june) * 100
+    percentage_over_30 = percentage_over_30.reindex(total_streaks_per_hour_june.index, fill_value=0)
+
+    # JULY
+    streaks_over_30_july = streaks_july[streaks_july['avg_temperature'] >= 30]
+
+    streaks_over_30_july['streak_length_hour'] = streaks_over_30_july['streak_length'].round()
+
+    total_streaks_per_hour_july = streaks_july['streak_length_hour'].value_counts().sort_index()
+    streaks_over_30_per_hour_july = streaks_over_30_july['streak_length_hour'].value_counts().sort_index()
+
+    percentage_over_30_july = (streaks_over_30_per_hour_july/ total_streaks_per_hour_july) * 100
+    percentage_over_30_july = percentage_over_30_july.reindex(total_streaks_per_hour_july.index, fill_value=0)
+
+    bar_width = 0.35
+    offset = bar_width / 2
+
+    # Step 5: Plot the histogram
+    plt.figure(figsize=(11, 5))
+    plt.bar(percentage_over_30.index - offset, percentage_over_30.values, color='skyblue', edgecolor='black', width=0.2, label='June')
+    plt.bar(percentage_over_30_july.index + offset, percentage_over_30_july.values, color='red', edgecolor='black', width=0.2, label='July')
+    plt.suptitle('June and July 2023, 8:00-21:00')
+    plt.xlabel('AC off duration [hours]')
+    plt.ylabel('AC off periods where average temperature ≥ 30°C/86°F [%]')
+    plt.title('Percentage of AC off periods reaching an average temperature of 30°C/86°F or more by AC off duration')
+    plt.legend()
+
+    # Adding percentage annotations above each bar
+    for i in range(len(percentage_over_30)):
+        plt.text(percentage_over_30.index[i], percentage_over_30.values[i] + 1,
+                 f'{percentage_over_30.values[i]:.1f}%', ha='center', fontsize=9)
+
+    for i in range(len(percentage_over_30_july)):
+        plt.text(percentage_over_30_july.index[i], percentage_over_30_july.values[i] + 1,
+                 f'{percentage_over_30_july.values[i]:.1f}%', ha='left', fontsize=9)
+
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.show()
 
 
 # plot_max_temp_vs_streak_time(results_df)
 
+plot_temp_reach_histogram()
+
 # plot_area_hours(results_df, rate_counts)
 
 # plot_avg_temp_increase(results_df)
+#
+
 
 # plot_results(results_df)
 
@@ -388,6 +530,6 @@ def plot_max_temp_vs_streak_time(df):
 
 # plot_temp_vs_time(results_df)
 
-# plot_neg_rate_vs_time(results_df)
+# plot_rate_vs_time(results_df)
 
 # plot_rates_vs_time(results_df, rate_counts)
