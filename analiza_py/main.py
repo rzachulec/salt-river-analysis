@@ -271,5 +271,4 @@ def find_non_off_days():
     final_df.to_csv('max_temps_AC_on.csv', index=False)
 
 
-
 find_non_off_days()

@@ -1,17 +1,19 @@
-from cProfile import label
-
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 import matplotlib as mpl
-from matplotlib.dates import DateFormatter
+import matplotlib.dates as mdates
+
+plt.rcParams["font.family"] = "serif"
+
 
 # Load the CSV files
 df1 = pd.read_csv('hot_ids.csv')  # Replace with your actual CSV file path
 df2 = pd.read_csv('../CSV_Load_files/2023_SRP_R.csv')  # Replace with your actual CSV file path
 
-user_ids = df1['customer_id'].tolist()
+# user_ids = df1['customer_id'].tolist()
 # user_ids = [33, 36, 93, 94, 105, 113, 116, 129, 138]
-# user_ids = [32]
+user_ids = [54, 113, 122, 62]
 print(user_ids)
 
 all_dataframes = []
@@ -43,7 +45,7 @@ for year in [2021, 2022, 2023]:
             # Extract streak times and calculate the 2-hour window
             streak_start_time = pd.to_datetime(user_data['streak_start_time'].values[user_count])
             streak_end_time = pd.to_datetime(user_data['streak_end_time'].values[user_count])
-            start_time_window = streak_start_time - pd.Timedelta(hours=2)
+            start_time_window = streak_start_time - pd.Timedelta(hours=4)
             end_time_window = streak_start_time + pd.Timedelta(hours=12)
 
             # Construct column names for AC_SUB and TEMP based on the year and user ID
@@ -75,6 +77,7 @@ for year in [2021, 2022, 2023]:
 # Concatenate all dataframes into a single dataframe
 collective_df = pd.concat(all_dataframes, ignore_index=True)
 collective_df = collective_df.sort_values(by='date_time').reset_index()
+# collective_df['time'] = collective_df['date_time'].dt.hour
 
 
 # Plot the collective data
@@ -85,14 +88,16 @@ collective_df = collective_df.sort_values(by='date_time').reset_index()
 #                  , c=user_df[f'AC_SUB_2023_{user_id}'], cmap='bwr'
 #                  )
 #     plt.plot(user_df['date_time'], user_df['temperature'], linestyle='--', label=f'User ID: {user_id}')
+xformatter = mdates.DateFormatter('%H')
+
 for user_id in user_ids:
     for year in [2021, 2022, 2023]:
         temp_col = f'TEMP_{year}_{user_id}'
         user_df = collective_df[collective_df['user_id'] == user_id]
         if temp_col in user_df.columns:
-            fig = plt.figure(figsize=(12, 6))
+            fig = plt.figure(figsize=(7, 6))
             ax1 = fig.add_subplot(1, 1, 1)
-            plt.title(f'Internal temperature vs external temperature over time, Date: {user_df['date_time'].iloc[0].date()}, Customer ID: {user_id}')
+            plt.title(f'Customer ID: {user_id}')
 
             sc1 = ax1.scatter(user_df['date_time'],
                               user_df[f'TEMP_{year}_{user_id}'],
@@ -104,7 +109,10 @@ for user_id in user_ids:
                      label='External temperature')
 
             ax1.set(ylabel = 'Temperature [°C]',
-                    xlabel = 'Date and time')
+                    xlabel = 'Hour of day',
+                    yticks = np.arange(20, 45, 2).astype(int),
+                    )
+            ax1.xaxis.set_major_formatter(xformatter)
             ax1.grid(True)
             ax1.legend()
 
@@ -115,5 +123,5 @@ for user_id in user_ids:
                             celsius_to_fahrenheit(ax1.get_ylim()[1])))
 
             ax11.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}"))
-
+            plt.savefig(f'cID{user_id}.png')
             plt.show()

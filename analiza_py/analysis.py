@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr, spearmanr
 
+plt.rcParams["font.family"] = "serif"
+
 # load main data
 results_df = pd.read_csv('temperature_increase_analysis_day.csv')
 # results_df = results_df[results_df['customer_id'] != 33]
@@ -296,8 +298,8 @@ def plot_max_temp_vs_streak_time(df):
     # Step 1: Sort by 'RATE' and 'start_time'
     df = df.sort_values(by=['customer_id', 'start_time']).reset_index(drop=True)
 
-    df = df[(df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-06')
-             | df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-07')
+    df = df[(df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-07')
+             # | df['start_time'].dt.to_period('M').astype(str).str.startswith('2023-07')
              )]
 
     df['is_new_streak'] = (
@@ -384,15 +386,15 @@ def plot_max_temp_vs_streak_time(df):
     def celsius_to_fahrenheit_delta(x):
         return x * 9/5
 
-    fig=plt.figure(figsize=(5, 10))
-    fig.suptitle('July 2023, 8:00-21:00', size=13)
-    ax1 = fig.add_subplot(2, 1, 1)
+    fig=plt.figure(figsize=(5, 4))
+    fig.suptitle('June 2023', size=13)
+    ax1 = fig.add_subplot(1, 1, 1)
     ax1.scatter(streaks['streak_length'], streaks['temp_delta'], alpha=0.4, c='blue')
     ax1.plot(hourly_avg_delta['hour'], hourly_avg_delta['avg_delta'], 'r--', label='Average maximum temperature delta')
     ax1.set_xlabel('Continuous AC off time [hours]')
     ax1.grid(axis="y")
     ax1.set_ylabel('Maximum temperature delta [°C]')
-    ax1.set_title('Maximum temperature delta vs length of AC off time')
+    # ax1.set_title('Maximum temperature delta vs length of AC off time')
     ax1.legend()
 
     ax11 = ax1.twinx()
@@ -415,25 +417,26 @@ def plot_max_temp_vs_streak_time(df):
     # ax22.set_ylim(celsius_to_fahrenheit(ax2.get_ylim()[0]), celsius_to_fahrenheit(ax2.get_ylim()[1]))
     # ax22.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}"))
 
-    ax3 = fig.add_subplot(2, 1, 2)
-    ax3.scatter(streaks['streak_length'], streaks['avg_temperature'], alpha=0.4, c='blue')
-    ax3.plot(hourly_avg_temp['hour'], hourly_avg_temp['avg_temperature'], 'r--', label='Average temperature')
-    ax3.set_xlabel('Continuous AC off time [hours]')
-    ax3.grid(axis="y")
-    ax3.set_ylabel('Average temperature [°C]')
-    ax3.set_title('Average temperature vs length of AC off time')
-    ax3.legend()
+    # ax3 = fig.add_subplot(1, 1, 1)
+    # ax3.scatter(streaks['streak_length'], streaks['avg_temperature'], alpha=0.4, c='blue')
+    # ax3.plot(hourly_avg_temp['hour'], hourly_avg_temp['avg_temperature'], 'r--', label='Mean average temperature')
+    # ax3.set_xlabel('Continuous AC off time [hours]')
+    # ax3.grid(axis="y")
+    # ax3.set_ylabel('Average internal temperature [°C]')
+    # # ax3.set_title('Average temperature vs length of AC off time')
+    # ax3.legend()
+    #
+    # ax33 = ax3.twinx()
+    # ax33.set_ylabel('Average temperature [°F]', color='black')
+    # ax33.set_ylim(celsius_to_fahrenheit(ax3.get_ylim()[0]), celsius_to_fahrenheit(ax3.get_ylim()[1]))
+    # ax33.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}"))
 
-    ax33 = ax3.twinx()
-    ax33.set_ylabel('Average temperature [°F]', color='black')
-    ax33.set_ylim(celsius_to_fahrenheit(ax3.get_ylim()[0]), celsius_to_fahrenheit(ax3.get_ylim()[1]))
-    ax33.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0f}"))
-
-    ax1.text(0, 1.1, 'c)', transform=ax1.transAxes, fontsize=12, verticalalignment='top', weight='bold')
+    ax1.text(-0.1, 1, 'a)', transform=ax1.transAxes, fontsize=12, verticalalignment='top', weight='bold')
     # ax2.text(0, 1.1, 'b)', transform=ax2.transAxes, fontsize=12, verticalalignment='top', weight='bold')
-    ax3.text(0, 1.1, 'd)', transform=ax3.transAxes, fontsize=12, verticalalignment='top', weight='bold')
+    # ax3.text(-0.1, 1, 'd)', transform=ax3.transAxes, fontsize=12, verticalalignment='top', weight='bold')
 
     fig.tight_layout()
+    plt.savefig('max temp delta june 23.png')
     plt.show()
 
     # plt.bar(number_of_streaks['streak_length'], number_of_streaks['count'], 0.2, color='blue')
@@ -492,19 +495,19 @@ def plot_temp_reach_histogram():
     offset = bar_width / 2
 
     # Step 5: Plot the histogram
-    plt.figure(figsize=(11, 5))
-    plt.bar(percentage_over_30.index - offset, percentage_over_30.values, color='skyblue', edgecolor='black', width=0.2, label='June')
-    plt.bar(percentage_over_30_july.index + offset, percentage_over_30_july.values, color='red', edgecolor='black', width=0.2, label='July')
+    plt.figure(figsize=(9, 4))
+    plt.bar(percentage_over_30.index - offset, percentage_over_30.values, color='skyblue', edgecolor='black', width=0.25, label='June')
+    plt.bar(percentage_over_30_july.index + offset, percentage_over_30_july.values, color='red', edgecolor='black', width=0.25, label='July')
     plt.suptitle('June and July 2023, 8:00-21:00')
     plt.xlabel('AC off duration [hours]')
-    plt.ylabel('AC off periods where average temperature ≥ 30°C/86°F [%]')
-    plt.title('Percentage of AC off periods reaching an average temperature of 30°C/86°F or more by AC off duration')
+    plt.ylabel('Instances with avg. temp. ≥ 30°C/86°F [%]')
+    plt.title('AC off periods resulting in average internal temperature over 30°C/86°F by duration')
     plt.legend()
 
     # Adding percentage annotations above each bar
     for i in range(len(percentage_over_30)):
         plt.text(percentage_over_30.index[i], percentage_over_30.values[i] + 1,
-                 f'{percentage_over_30.values[i]:.1f}%', ha='center', fontsize=9)
+                 f'{percentage_over_30.values[i]:.1f}%', ha='right', fontsize=9)
 
     for i in range(len(percentage_over_30_july)):
         plt.text(percentage_over_30_july.index[i], percentage_over_30_july.values[i] + 1,
@@ -514,9 +517,9 @@ def plot_temp_reach_histogram():
     plt.show()
 
 
-# plot_max_temp_vs_streak_time(results_df)
+plot_max_temp_vs_streak_time(results_df)
 
-plot_temp_reach_histogram()
+# plot_temp_reach_histogram()
 
 # plot_area_hours(results_df, rate_counts)
 
