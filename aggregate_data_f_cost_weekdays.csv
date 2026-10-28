@@ -1,0 +1,1 @@
+date,mean_external_temp,mean_internal_temp,std_internal_temp,mean_ac_use,std_ac_use,avg_daytime_temp,avg_night_temp,temp_range,fraction_above_27,fraction_below_24,AC_usage_correlation,CustomerID,RATE,HH_Age,HH_Income_Desc,HH_NumberOfPersons,LVBL_SQ_FT,dayAC,cost
